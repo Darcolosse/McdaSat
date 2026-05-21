@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from Point import Point 
+from Point import Point
 
 
 @dataclass
@@ -16,7 +16,7 @@ class InstantSatellite:
     """
 
     point: Point
-    neighbors: list[Point] = field(default_factory=list)
+    neighbors: list[Satellite] = field(default_factory=list)
 
 
 @dataclass
