@@ -97,3 +97,29 @@ class FloodingRouter(RouterInterface):
             pdu = self.pdus_to_send.pop(0)
             for neighbor in self.satellite.list_coordinates[self.network_simulation.current_index].neighbors:
                 self.network_simulation.routers[neighbor.name].receive(pdu)
+
+
+class EpidemicRouter(RouterInterface):
+    """Epidemic routing: store-carry-forward with summary-vector exchange."""
+
+    def _known_pdu_ids(self) -> set:
+        return {
+            p.id
+            for p in (
+                self.pdus_to_send
+                + self.pdus_memory
+                + self.pdus_where_this_router_is_the_destination
+                + self.receiving
+            )
+        }
+
+    def any_messages_to_send(self) -> bool:
+        return len(self.pdus_memory) > 0 or len(self.pdus_to_send) > 0
+
+    def send(self):
+        self.pdus_to_send.clear()
+        for pdu in self.pdus_memory:
+            for neighbor in self.satellite.list_coordinates[self.network_simulation.current_index].neighbors:
+                neighbor_router = self.network_simulation.routers[neighbor.name]
+                if pdu.id not in neighbor_router._known_pdu_ids():
+                    neighbor_router.receive(pdu)

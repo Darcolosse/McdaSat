@@ -1,3 +1,4 @@
+from __future__ import annotations
 from ..classes.Satellite import *
 from collections import deque
 import pandas as pd
