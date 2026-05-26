@@ -100,7 +100,17 @@ class FloodingRouter(RouterInterface):
 
 
 class EpidemicRouter(RouterInterface):
-    """Epidemic routing: store-carry-forward with summary-vector exchange."""
+    """
+    Epidemic routing (store-carry-forward).
+
+    Garantie : exactement 1 saut par pas de simulation.
+
+    Clé du design : receive() n'ajoute le PDU QU'à self.receiving (pas à
+    pdus_memory). simulate_reception() fait la migration en FIN de pas.
+    Ainsi, un PDU reçu au pas T n'est dans pdus_memory qu'au pas T+1,
+    et ne peut donc pas être retransmis dans le même pas (pas de chaîne
+    multi-sauts instantanée).
+    """
 
     def _known_pdu_ids(self) -> set:
         return {
@@ -113,6 +123,22 @@ class EpidemicRouter(RouterInterface):
             )
         }
 
+    def receive(self, pdu: PDU):
+        if pdu.id in self._known_pdu_ids():
+            return
+        cloned = copy.deepcopy(pdu)
+        cloned.trace.append(self.satellite.name)
+        if cloned.dest_sat_name == self.satellite.name:
+            self.pdus_where_this_router_is_the_destination.append(cloned)
+        else:
+            self.receiving.append(cloned)   # pdus_memory mis à jour en fin de pas
+
+    def simulate_reception(self):
+        while self.receiving:
+            pdu = self.receiving.pop(0)
+            self.pdus_memory.append(pdu)
+            self.pdus_to_send.append(pdu)   # prêt à émettre dès le prochain pas
+
     def send(self):
         self.pdus_to_send.clear()
         for pdu in self.pdus_memory:
@@ -120,7 +146,4 @@ class EpidemicRouter(RouterInterface):
                 neighbor_router = self.network_simulation.routers[neighbor.name]
                 if pdu.id not in neighbor_router._known_pdu_ids():
                     neighbor_router.receive(pdu)
-        # Re-arm pour le prochain pas : on reste actif tant qu'on porte des PDUs.
-        # Un nœud qui vient de recevoir a le PDU dans receiving (pas pdus_to_send),
-        # donc any_messages_to_send() est False pour lui jusqu'à simulate_reception().
-        self.pdus_to_send.extend(self.pdus_memory)
+        self.pdus_to_send.extend(self.pdus_memory)  # reste actif tant qu'on porte des PDUs
