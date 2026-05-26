@@ -53,7 +53,7 @@ def adjacency_matrix(sats: list[Satellite], i: int, key="id"):
     return label_matrix(sats, adj_matrix, key)
     
 def degree_matrix(sats: list[Satellite], i: int, key="id"):
-    return label_matrix(sats, np.diag([len(sat.list_coordinates[i].neighbors) for sat in sats]))
+    return label_matrix(sats, np.diag([len(sat.list_coordinates[i].neighbors) for sat in sats]), key)
 
 def weight_matrix(sats: list[Satellite], i: int, key="id"):
     id_to_idx = {sat.id: idx for idx, sat in enumerate(sats)}
