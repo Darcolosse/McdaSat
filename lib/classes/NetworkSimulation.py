@@ -113,9 +113,6 @@ class EpidemicRouter(RouterInterface):
             )
         }
 
-    def any_messages_to_send(self) -> bool:
-        return len(self.pdus_memory) > 0 or len(self.pdus_to_send) > 0
-
     def send(self):
         self.pdus_to_send.clear()
         for pdu in self.pdus_memory:
@@ -123,3 +120,7 @@ class EpidemicRouter(RouterInterface):
                 neighbor_router = self.network_simulation.routers[neighbor.name]
                 if pdu.id not in neighbor_router._known_pdu_ids():
                     neighbor_router.receive(pdu)
+        # Re-arm pour le prochain pas : on reste actif tant qu'on porte des PDUs.
+        # Un nœud qui vient de recevoir a le PDU dans receiving (pas pdus_to_send),
+        # donc any_messages_to_send() est False pour lui jusqu'à simulate_reception().
+        self.pdus_to_send.extend(self.pdus_memory)
