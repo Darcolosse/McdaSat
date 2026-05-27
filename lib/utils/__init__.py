@@ -6,3 +6,5 @@ from .graph import *
 from .analyze_graph import *
 # End-to-end latency and goodput metrics for epidemic routing
 from .metrics import *
+# Satellite failure scenarios and before/after comparison
+from .failure import *
