@@ -406,11 +406,83 @@ def algo_comparison_dataframe(comparison: dict):
             ls_f.get('mean_latency_s'), ls_f.get('min_latency_s'), ls_f.get('max_latency_s'),
             ls_f.get('mean_hops'),      ls_f.get('mean_store_s'),
         ]
-        data["Ep. (panne)"]       = rows_f
-        data["LS  (panne)"]       = rows_ls_f
+        data["Ep. (panne)"]         = rows_f
+        data["LS  (panne)"]         = rows_ls_f
         data["Delta (LS/Ep panne)"] = [_d(ep_v, ls_v) for ep_v, ls_v in zip(rows_f, rows_ls_f)]
 
     df = pd.DataFrame(data, index=[r[0] for r in rows])
+    df.index.name = "Metrique"
+    return df
+
+
+def algo_comparison_dataframe_full(
+    comp_normal: dict,
+    comp_manual: dict | None = None,
+    comp_random: dict | None = None,
+):
+    """Tableau unifié : normal + pannes manuelles + pannes aléatoires (Epidemic & LSP).
+
+    Args:
+        comp_normal: résultat de run_algo_comparison sans failure_config.
+        comp_manual: résultat de run_algo_comparison avec pannes volontaires.
+        comp_random: résultat de run_algo_comparison avec pannes aléatoires.
+    """
+    import pandas as pd
+
+    METRIC_LABELS = [
+        "Taux de livraison (%)",
+        "PDUs livres",
+        "Goodput (bps)",
+        "Latence moy. (s)",
+        "Latence min (s)",
+        "Latence max (s)",
+        "Sauts moyens",
+        "Stockage moy. (s)",
+    ]
+
+    def _d(ref, new):
+        if ref is None or new is None:
+            return "N/A"
+        if ref == 0:
+            return "+inf" if new > 0 else "=0"
+        return f"{(new - ref) / ref * 100:+.1f}%"
+
+    def _extract(m: dict) -> list:
+        return [
+            m['delivery_ratio'] * 100,
+            m['n_delivered'],
+            m['goodput_bps'],
+            m.get('mean_latency_s'),
+            m.get('min_latency_s'),
+            m.get('max_latency_s'),
+            m.get('mean_hops'),
+            m.get('mean_store_s'),
+        ]
+
+    ep_n = _extract(comp_normal['epidemic_normal'])
+    ls_n = _extract(comp_normal['linkstate_normal'])
+
+    data: dict = {
+        "Epidemic":      ep_n,
+        "Link-State":    ls_n,
+        "Delta (LS/Ep)": [_d(e, l) for e, l in zip(ep_n, ls_n)],
+    }
+
+    if comp_manual is not None and 'epidemic_failure' in comp_manual:
+        ep_m = _extract(comp_manual['epidemic_failure'])
+        ls_m = _extract(comp_manual['linkstate_failure'])
+        data["Ep. (manu.)"]   = ep_m
+        data["LS  (manu.)"]   = ls_m
+        data["Delta (manu.)"] = [_d(e, l) for e, l in zip(ep_m, ls_m)]
+
+    if comp_random is not None and 'epidemic_failure' in comp_random:
+        ep_r = _extract(comp_random['epidemic_failure'])
+        ls_r = _extract(comp_random['linkstate_failure'])
+        data["Ep. (alea.)"]   = ep_r
+        data["LS  (alea.)"]   = ls_r
+        data["Delta (alea.)"] = [_d(e, l) for e, l in zip(ep_r, ls_r)]
+
+    df = pd.DataFrame(data, index=METRIC_LABELS)
     df.index.name = "Metrique"
     return df
 

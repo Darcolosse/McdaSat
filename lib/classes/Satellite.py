@@ -1,8 +1,9 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import Iterator
 from .Point import Point
-    
+
+EMISSION_RANGES = [20_000, 40_000, 60_000]
+
 
 @dataclass
 class InstantSatellite:
@@ -10,51 +11,52 @@ class InstantSatellite:
 
     Attributes:
         point: The position of the satellite at this instant t.
-        neighbors: The list of neighboring satellite positions.
+        neighbors: Neighboring satellites, selected by crescendo range (20/40/60 km).
     """
 
-    # Basic blueprint of an instant in time of a satellite
     point: Point
-    _neighbors: dict[int, Satellite] = field(default_factory=dict)
-
-    # For failure management
-    _deactivated_neighbors: dict[int, Satellite] = field(default_factory=dict)
-
-    @property
-    def neighbors(self) -> Iterator[Satellite]:
-        return self._neighbors.values()
+    # Cumulative neighbors per range level: range_m -> {sat_id -> Satellite}
+    _neighbors_by_range: dict[int, dict[int, Satellite]] = field(default_factory=dict)
+    _deactivated_ids: set[int] = field(default_factory=set)
 
     @property
-    def neighbor_ids(self) -> Iterator[int]:
-        return self._neighbors.keys()
+    def neighbors(self) -> list[Satellite]:
+        """Return neighbors at the lowest emission range that has at least one active neighbor."""
+        for r in EMISSION_RANGES:
+            level = [v for k, v in self._neighbors_by_range.get(r, {}).items()
+                     if k not in self._deactivated_ids]
+            if level:
+                return level
+        return []
+
+    @property
+    def neighbor_ids(self) -> list[int]:
+        return [s.id for s in self.neighbors]
 
     @property
     def neighbor_names(self) -> list[str]:
-        return [sat.name for sat in self._neighbors.values()]
+        return [s.name for s in self.neighbors]
 
-    def add_neighbor(self, neighbor: Satellite):
-        self._neighbors[neighbor.id] = neighbor
+    def add_neighbor(self, neighbor: Satellite, range_m: int):
+        if range_m not in self._neighbors_by_range:
+            self._neighbors_by_range[range_m] = {}
+        self._neighbors_by_range[range_m][neighbor.id] = neighbor
 
     def has_neighbor(self, neighbor_id: int) -> bool:
-        return neighbor_id in self._neighbors
+        return any(neighbor_id in d for d in self._neighbors_by_range.values())
 
     def deactivate_neighbors(self, neighbor_ids: list[int]):
-        for neighbor_id in neighbor_ids:
-            if neighbor_id in self._neighbors:
-                self._deactivated_neighbors[neighbor_id] = self._neighbors.pop(neighbor_id)
+        self._deactivated_ids.update(neighbor_ids)
 
     def reactivate_neighbors(self, neighbor_ids: list[int]):
-        for neighbor_id in neighbor_ids:
-            if neighbor_id in self._deactivated_neighbors:
-                self._neighbors[neighbor_id] = self._deactivated_neighbors.pop(neighbor_id)
+        self._deactivated_ids.difference_update(neighbor_ids)
 
     def deactivate_all_neighbors(self):
-        self._deactivated_neighbors.update(self._neighbors)
-        self._neighbors.clear()
+        all_ids = {k for d in self._neighbors_by_range.values() for k in d}
+        self._deactivated_ids.update(all_ids)
 
     def reactivate_all_neighbors(self):
-        self._neighbors.update(self._deactivated_neighbors)
-        self._deactivated_neighbors.clear()
+        self._deactivated_ids.clear()
 
 
 @dataclass
@@ -70,11 +72,6 @@ class Satellite:
     name: str
     list_coordinates: list[InstantSatellite] = field(default_factory=list)
 
-    def add_instant(self, point: Point, neighbors: dict[str, Satellite] | None = None) -> None:
-        """Record a new position instant for this satellite.
-
-        Args:
-            point: The position of the satellite at this instant.
-            neighbors: The neighboring satellite positions. Defaults to empty list.
-        """
-        self.list_coordinates.append(InstantSatellite(point, neighbors or {}))
+    def add_instant(self, point: Point) -> None:
+        """Record a new position instant for this satellite."""
+        self.list_coordinates.append(InstantSatellite(point))

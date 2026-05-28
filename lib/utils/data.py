@@ -36,15 +36,16 @@ def load_data(filepath: str | Path, separator: str = ",", header: int | None = N
 
     return pd.read_csv(filepath, sep=separator, header=header)
 
-def struct_data(df: pd.DataFrame, static_range: int = 28000) -> list[Satellite]:
-    print(f"Chargement des satellites imposant une portée statique uniforme de {static_range}m ({static_range/1000}km)")
+def struct_data(df: pd.DataFrame) -> list[Satellite]:
+    from ..classes.Satellite import EMISSION_RANGES
+    print(f"Chargement des satellites avec portées crescendo {[r//1000 for r in EMISSION_RANGES]} km")
 
     # Create columns label
     df.columns = [f"t{i}" for i in range(len(df.columns))]
 
     satellites = []
 
-    start = time.perf_counter()   
+    start = time.perf_counter()
 
     # Satellite coordinate data processing
     for i in range(0, len(df), 3):
@@ -56,15 +57,17 @@ def struct_data(df: pd.DataFrame, static_range: int = 28000) -> list[Satellite]:
 
         satellites.append(satellite)
 
-    # Satellite neighbors processing
+    # Satellite neighbors processing — store cumulative neighbors at each emission range
     for index, sat in enumerate(satellites):
         for other_sat in satellites[index+1:]:
             for i in range(len(sat.list_coordinates)):
-                in_range = sat.list_coordinates[i].point.in_range( other_sat.list_coordinates[i].point, static_range)
-                if in_range:
-                    sat.list_coordinates[i].add_neighbor(other_sat)
-                    other_sat.list_coordinates[i].add_neighbor(sat)
-                    
+                p1 = sat.list_coordinates[i].point
+                p2 = other_sat.list_coordinates[i].point
+                for r in EMISSION_RANGES:
+                    if p1.in_range(p2, r):
+                        sat.list_coordinates[i].add_neighbor(other_sat, r)
+                        other_sat.list_coordinates[i].add_neighbor(sat, r)
+
     end = time.perf_counter()
 
     print(f"{len(satellites)} satellites ont été chargés")
