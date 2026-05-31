@@ -23,3 +23,6 @@ def count_isolated_subgraphs(sats: list[Satellite], i: int, precalculated_subgra
 def count_isolated_clusters(sats: list[Satellite], i: int, precalculated_subgraphs_instants: list[list[Satellite]]):
     lengths = np.array([len(subgraph) for subgraph in precalculated_subgraphs_instants[i]])
     return np.sum(lengths > 1)
+
+def extract_biggest_cluster_from_subgraphs(sats: list[Satellite], i: int, precalculated_subgraphs_instants: list[list[Satellite]]):
+    return max(precalculated_subgraphs_instants[i], key=len)
